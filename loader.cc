@@ -38,6 +38,7 @@
 #include "drivers/vmxnet3.hh"
 #include "drivers/zfs.hh"
 #include "drivers/pvpanic.hh"
+#include "drivers/urandom.hh"
 #endif /* !AARCH64_PORT_STUB */
 
 #include <osv/sched.hh>
@@ -337,6 +338,7 @@ void* do_main_thread(void *_commands)
     drvman->list_drivers();
 
     randomdev::randomdev_init();
+    urandomdev::urandomdev_init();
     boot_time.event("drivers loaded");
 
     if (opt_mount) {
