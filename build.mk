@@ -682,6 +682,7 @@ drivers += drivers/hpet.o
 drivers += drivers/xenfront.o drivers/xenfront-xenbus.o drivers/xenfront-blk.o
 drivers += drivers/pvpanic.o
 drivers += drivers/random.o
+drivers += drivers/urandom.o
 drivers += drivers/ahci.o
 drivers += drivers/ide.o
 drivers += drivers/pci.o
