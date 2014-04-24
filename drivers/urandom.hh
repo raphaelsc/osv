@@ -11,6 +11,7 @@
 #include <osv/device.h>
 #include <osv/types.h>
 #include <memory>
+#include "drivers/random.hh"
 
 namespace urandomdev {
 
@@ -19,6 +20,8 @@ public:
 
     urandom_device();
     virtual ~urandom_device();
+
+    static void register_source(randomdev::hw_rng* hwrng);
 
 private:
 

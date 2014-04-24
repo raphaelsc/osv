@@ -47,7 +47,14 @@
 #include <dev/random/randomdev_soft.h>
 #include <dev/random/random_adaptors.h>
 
+extern "C" {
+    void live_entropy_source_register(struct random_hardware_source *);
+    void live_entropy_source_deregister(struct random_hardware_source *);
+};
+
 namespace urandomdev {
+
+using namespace randomdev;
 
 struct urandom_device_priv {
     urandom_device* drv;
@@ -111,10 +118,32 @@ struct driver urandom_device_driver = {
     sizeof(struct urandom_device_priv),
 };
 
+static hw_rng* s_hwrng;
+
+void urandom_device::register_source(hw_rng* hwrng)
+{
+    s_hwrng = hwrng;
+}
+
+int virtio_rng_read(void *buf, int size)
+{
+    if (s_hwrng) {
+        return s_hwrng->get_random_bytes(static_cast<char *>(buf), size);
+    }
+    return 0;
+}
+
+struct random_hardware_source rsource = {
+    "virtio-rng",
+    RANDOM_PURE_VIRTIO,
+    &virtio_rng_read,
+};
+
 urandom_device::urandom_device()
 {
     struct urandom_device_priv *prv;
 
+    live_entropy_source_register(&rsource);
     (random_adaptor->init)();
     _urandom_dev = device_create(&urandom_device_driver, "urandom", D_CHR);
     prv = to_priv(_urandom_dev);
@@ -125,6 +154,7 @@ urandom_device::~urandom_device()
 {
     (random_adaptor->deinit)();
     device_destroy(_urandom_dev);
+    live_entropy_source_deregister(&rsource);
 }
 
 void urandomdev_init()

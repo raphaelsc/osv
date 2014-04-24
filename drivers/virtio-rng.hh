@@ -15,6 +15,7 @@
 #include "drivers/virtio.hh"
 #include "drivers/device.hh"
 #include "drivers/random.hh"
+#include "drivers/urandom.hh"
 
 #include <vector>
 

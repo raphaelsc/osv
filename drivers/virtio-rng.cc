@@ -25,6 +25,7 @@ rng::rng(pci::device& pci_dev)
     _thread.start();
 
     randomdev::random_device::register_source(this);
+    urandomdev::urandom_device::register_source(this);
 }
 
 rng::~rng()
