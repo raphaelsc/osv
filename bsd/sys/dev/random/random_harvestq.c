@@ -260,6 +260,12 @@ random_harvestq_init(event_proc_f cb)
 
 	mtx_init(&harvest_mtx, "entropy harvest mutex", NULL, MTX_SPIN);
 
+	/*
+	 * Do some rounds of hardware sources to feed pool with enough entropy,
+	 * and consequently unblock random device.
+	 */
+	live_entropy_sources_feed(8, cb);
+
 	/* Start the hash/reseed thread */
 	error = kproc_create(random_kthread, cb,
 	    &random_kthread_proc, RFHIGHPID, 0, "rand_harvestq"); /* RANDOM_CSPRNG_NAME */

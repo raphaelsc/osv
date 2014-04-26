@@ -74,6 +74,9 @@ urandom_read(struct device *dev, struct uio *uio, int ioflags)
     /* The actual read */
     random_buf = (void *)malloc(PAGE_SIZE);
 
+    /* Guarantee that random is properly seeded */
+    assert(random_adaptor->seeded == 1);
+
     while (uio->uio_resid > 0 && !error) {
         c = MIN(uio->uio_resid, PAGE_SIZE);
         c = (*random_adaptor->read)(random_buf, c);
