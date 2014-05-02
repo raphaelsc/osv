@@ -731,7 +731,7 @@ void reclaimer::_shrinker_loop(size_t target, std::function<bool ()> hard)
             // FIXME: If needed, in the future we can introduce another
             // intermediate threshold that will put is into hard mode even
             // before we have waiters.
-            size_t freed = s->request_memory(target, hard());
+            size_t freed = s->release_memory(target, hard());
             trace_memory_reclaim(s->name().c_str(), target, freed);
         }
     }

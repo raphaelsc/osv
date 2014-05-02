@@ -18,7 +18,7 @@ struct eventhandler_entry_generic {
 class bsd_shrinker : public memory::shrinker {
 public:
     explicit bsd_shrinker(struct eventhandler_entry_generic *ee);
-    size_t request_memory(size_t s, bool hard);
+    size_t release_memory(size_t s, bool hard);
 private:
     struct eventhandler_entry_generic *_ee;
 };
@@ -26,7 +26,7 @@ private:
 class arc_shrinker : public memory::shrinker {
 public:
     explicit arc_shrinker();
-    size_t request_memory(size_t s, bool hard);
+    size_t release_memory(size_t s, bool hard);
 };
 
 bsd_shrinker::bsd_shrinker(struct eventhandler_entry_generic *ee)
@@ -34,7 +34,7 @@ bsd_shrinker::bsd_shrinker(struct eventhandler_entry_generic *ee)
 {
 }
 
-size_t bsd_shrinker::request_memory(size_t s, bool hard)
+size_t bsd_shrinker::release_memory(size_t s, bool hard)
 {
     // Return the amount of released memory.
     return _ee->func(_ee->ee.ee_arg);
@@ -48,7 +48,7 @@ arc_shrinker::arc_shrinker()
 extern "C" size_t arc_lowmem(void *arg, int howto);
 extern "C" size_t arc_sized_adjust(int64_t to_reclaim);
 
-size_t arc_shrinker::request_memory(size_t s, bool hard)
+size_t arc_shrinker::release_memory(size_t s, bool hard)
 {
     size_t ret = 0;
     if (hard) {
