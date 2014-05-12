@@ -4033,12 +4033,14 @@ arc_init(void)
 		zfs_write_limit_shift = 0;
 	mutex_init(&zfs_write_limit_lock, NULL, MUTEX_DEFAULT, NULL);
 
-#ifndef __OSV__
 #ifdef _KERNEL
+#ifndef __OSV__
 	if (TUNABLE_INT_FETCH("vfs.zfs.prefetch_disable", &zfs_prefetch_disable))
 		prefetch_tunable_set = 1;
+#endif
 
 #ifdef __i386__
+#error __i386__ is defined
 	if (prefetch_tunable_set == 0) {
 		printf("ZFS NOTICE: Prefetch is disabled by default on i386 "
 		    "-- to enable,\n");
@@ -4065,11 +4067,12 @@ arc_init(void)
 	if (kmem_size() < 512 * (1 << 20)) {
 		printf("ZFS WARNING: Recommended minimum kmem_size is 512MB; "
 		    "expect unstable behavior.\n");
+#ifndef __OSV__
 		printf("             Consider tuning vm.kmem_size and "
 		    "vm.kmem_size_max\n");
 		printf("             in /boot/loader.conf.\n");
-	}
 #endif
+	}
 }
 
 void
