@@ -61,7 +61,10 @@ enum esource {
 	RANDOM_PURE_VIRTIO,
 	ENTROPYSOURCE
 };
+
+__BEGIN_DECLS
 void random_harvest(const void *, u_int, u_int, enum esource);
+__END_DECLS
 
 /* Allow the sysadmin to select the broad category of
  * entropy types to harvest

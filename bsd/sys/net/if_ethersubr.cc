@@ -43,6 +43,7 @@
 #include <bsd/porting/sync_stub.h>
 #include <bsd/porting/rwlock.h>
 
+#include <bsd/sys/sys/random.h>
 #include <bsd/sys/sys/param.h>
 #include <bsd/sys/sys/mbuf.h>
 #include <bsd/sys/sys/socket.h>
@@ -698,11 +699,10 @@ ether_preprocess_packet(struct ifnet *ifp, struct mbuf *m, uint16_t& ether_type)
 		return false;
 	}
 
-#if 0
 	/* First chunk of an mbuf contains good entropy */
-	if (harvest.ethernet)
-		random_harvest(m, 16, 3, 0, RANDOM_NET);
-#endif
+	if (harvest.ethernet) {
+		random_harvest(m, 16, 3, RANDOM_NET_ETHER);
+	}
 
 	ether_type = ntohs(eh->ether_type);
 
