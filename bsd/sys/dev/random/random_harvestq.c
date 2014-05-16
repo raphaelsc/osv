@@ -220,7 +220,7 @@ random_kthread(void *arg)
 
 #ifdef __OSV__
 		msleep(&random_kthread_control, &harvest_mtx,
-			   0, "-", hz/10);
+			   0, "-", hz/5);
 #else
 		/* Work done, so don't belabour the issue */
 		msleep_spin_sbt(&random_kthread_control, &harvest_mtx,

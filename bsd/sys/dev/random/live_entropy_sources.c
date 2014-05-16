@@ -173,7 +173,10 @@ live_entropy_sources_feed(int rounds, event_proc_f entropy_processor)
 
 			event.somecounter = get_cyclecount();
 			event.size = n;
-			event.bits = (n*8)/2;
+			event.bits = n * 8;
+			if (les->rsource->source != RANDOM_PURE_VIRTIO) {
+				event.bits /= 2;
+			}
 			event.source = les->rsource->source;
 			memcpy(event.entropy, buf, n);
 
