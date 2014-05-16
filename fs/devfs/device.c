@@ -55,12 +55,13 @@
 #include <osv/buf.h>
 
 #include <geom/geom_disk.h>
+#include <sys/random.h>
+extern uint64_t get_cyclecount(void);
 
 struct mutex sched_mutex = MUTEX_INITIALIZER;
 
 #define sched_lock()	mutex_lock(&sched_mutex);
 #define sched_unlock()	mutex_unlock(&sched_mutex);
-
 
 /* list head of the devices */
 static struct device *device_list = NULL;
@@ -194,9 +195,11 @@ device_create(struct driver *drv, const char *name, int flags)
 {
 	struct device *dev;
 	size_t len;
+	uint64_t attachtime;
 
 	assert(drv != NULL);
 
+	attachtime = get_cyclecount();
 	/* Check the length of name. */
 	len = strnlen(name, MAXDEVNAME);
 	if (len == 0 || len >= MAXDEVNAME)
@@ -208,8 +211,14 @@ device_create(struct driver *drv, const char *name, int flags)
 	if ((dev = malloc(sizeof(*dev))) == NULL)
 		sys_panic("device_create");
 
-    dev->driver = drv;
-    device_register(dev, name, flags);
+	dev->driver = drv;
+	device_register(dev, name, flags);
+	attachtime = get_cyclecount() - attachtime;
+	/*
+	 * FreeBSD provides 4 bits of entropy when attaching device drivers
+	 * to devices by using get_cyclecount between the operation.
+	 */
+	random_harvest(&attachtime, sizeof(attachtime), 4, RANDOM_ATTACH);
 	return dev;
 }
 
