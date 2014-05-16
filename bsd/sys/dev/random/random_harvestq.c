@@ -64,6 +64,7 @@ __FBSDID("$FreeBSD$");
 #define RANDOM_FIFO_MAX	1024	/* How many events to queue up */
 
 #ifdef __OSV__
+#include <osv/debug.h>
 #include <stddef.h>
 #include <sys/bus.h>
 #endif
@@ -286,6 +287,30 @@ random_harvestq_deinit(void)
 }
 
 /*
+ * String table for all entropy sources. Used for debugging purposes.
+ */
+static const char *esource_str[] = {
+	"RANDOM_CACHED",
+	"RANDOM_ATTACH",
+	"RANDOM_KEYBOARD",
+	"RANDOM_MOUSE",
+	"RANDOM_NET_TUN",
+	"RANDOM_NET_ETHER",
+	"RANDOM_NET_NG",
+	"RANDOM_INTERRUPT",
+	"RANDOM_SWI",
+	"RANDOM_PURE_OCTEON",
+	"RANDOM_PURE_SAFE",
+	"RANDOM_PURE_GLXSB",
+	"RANDOM_PURE_UBSEC",
+	"RANDOM_PURE_HIFN",
+	"RANDOM_PURE_RDRAND",
+	"RANDOM_PURE_NEHEMIAH",
+	"RANDOM_PURE_RNDTEST",
+	"RANDOM_PURE_VIRTIO",
+};
+
+/*
  * Entropy harvesting routine.
  * This is supposed to be fast; do not do anything slow in here!
  *
@@ -303,6 +328,9 @@ random_harvestq_internal(u_int64_t somecounter, const void *entropy,
 
 	KASSERT(origin >= RANDOM_START && origin < ENTROPYSOURCE,
 	    ("random_harvest_internal: origin %d invalid\n", origin));
+
+	debugf("%s(): data: %u byte(s), random estimation: %u bit(s), origin: %s\n",
+	    __func__, count, bits, esource_str[origin]);
 
 	/* Lockless read to avoid lock operations if fifo is full. */
 	if (harvestfifo.count >= RANDOM_FIFO_MAX)
