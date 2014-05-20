@@ -1,4 +1,7 @@
-# OSv
+ / _ \/ ___|_   __
+| | | \___ \ \ / /
+| |_| |___) \ V / 
+ \___/|____/ \_/ 
 
 OSv is a new open-source operating system for virtual-machines.
 OSv was designed from the ground up to execute a single application on top
