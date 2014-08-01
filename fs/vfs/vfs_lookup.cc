@@ -36,6 +36,7 @@
 #include <osv/dentry.h>
 #include <osv/vnode.h>
 #include "vfs.h"
+#include <chrono>
 
 static ssize_t
 read_link(struct vnode *vp, char *buf, size_t bufsz, ssize_t *sz)
@@ -91,6 +92,10 @@ namei_follow_link(struct dentry *dp, char *node, char *name, char *fp)
     name[0] = 0;
     return (0);
 }
+
+double namei_total_time = 0;
+static mutex namei_total_time_lock;
+
 /*
  * Convert a pathname into a pointer to a dentry
  *
@@ -114,6 +119,8 @@ namei(const char *path, struct dentry **dpp)
 
     DPRINTF(VFSDB_VNODE, ("namei: path=%s\n", path));
 
+    auto begin = std::chrono::high_resolution_clock::now();
+
     links_followed = 0;
     strlcpy(fp.get(), path, PATH_MAX);
 
@@ -133,6 +140,12 @@ namei(const char *path, struct dentry **dpp)
         if (dp) {
             /* vnode is already active. */
             *dpp = dp;
+
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> namei_time_span = end - begin;
+            WITH_LOCK (namei_total_time_lock) {
+                namei_total_time += namei_time_span.count();
+            }
             return 0;
         }
         /*
@@ -237,6 +250,12 @@ namei(const char *path, struct dentry **dpp)
         vp->v_mode &= ~(0111);
     }
 #endif
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> namei_time_span = end - begin;
+    WITH_LOCK (namei_total_time_lock) {
+        namei_total_time += namei_time_span.count();
+    }
 
     *dpp = dp;
     return 0;

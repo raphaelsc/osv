@@ -2115,6 +2115,8 @@ extern "C" void bio_sync(void);
 
 int vfs_initialized;
 
+static std::chrono::high_resolution_clock::time_point vfs_begin;
+
 extern "C"
 void
 vfs_init(void)
@@ -2148,10 +2150,25 @@ vfs_init(void)
     if (dup(0) != 2)
         kprintf("failed to dup console (2)\n");
     vfs_initialized = 1;
+
+    vfs_begin = std::chrono::high_resolution_clock::now();
+}
+
+extern double namei_total_time;
+static inline double to_msec(double sec)
+{
+    return sec * 1000;
 }
 
 void vfs_exit(void)
 {
+    auto vfs_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> vfs_time_span = vfs_end - vfs_begin;
+    auto vfs_total_time = vfs_time_span.count();
+
+    printf("\tvfs_total_time: %.2fms (100%%)\n\t\tnamei_total_time: %.2fms (%.2f%%)\n",
+        to_msec(vfs_total_time), to_msec(namei_total_time), namei_total_time * 100 / vfs_total_time);
+
     /* Free up main_task (stores cwd data) resources */
     replace_cwd(main_task, nullptr, []() { return 0; });
     /* Unmount all file systems */
