@@ -18,7 +18,6 @@
 #include <bsd/porting/netport.h>
 #include <bsd/sys/netinet/in.h>
 #include <bsd/sys/netinet/ip.h>
-#include <osv/file.h>
 
 struct mbuf;
 struct pollreq;
@@ -37,7 +36,6 @@ private:
     sched::thread_handle _waiting_thread CACHELINE_ALIGNED;
     // extra list of threads to wake
     osv::rcu_ptr<std::vector<pollreq*>> _pollers;
-    osv::rcu_hashtable<epoll_ptr> _epollers;
     mutex _pollers_mutex;
 public:
     explicit net_channel(std::function<void (mbuf*)> process_packet)
@@ -47,7 +45,7 @@ public:
     // consumer: wake the consumer (best used after multiple push()s)
     void wake() {
         _waiting_thread.wake();
-        if (_pollers || !_epollers.empty()) {
+        if (_pollers) {
             wake_pollers();
         }
     }
@@ -56,8 +54,6 @@ public:
     // add/remove current thread from poller list
     void add_poller(pollreq& pr);
     void del_poller(pollreq& pr);
-    void add_epoll(const epoll_ptr& ep);
-    void del_epoll(const epoll_ptr& ep);
     static void* operator new (size_t size) {
         static_assert(sizeof(net_channel) <= 4096, "net_channel too big");
         return memory::alloc_page();
