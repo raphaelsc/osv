@@ -1,0 +1,225 @@
+From 89781b5127f42517a9e8816549ded8cef6299de0 Mon Sep 17 00:00:00 2001
+From: "Raphael S. Carvalho" <raphaelsc@cloudius-systems.com>
+Date: Mon, 29 Sep 2014 12:22:34 -0300
+Subject: [PATCH 3/3] zfs/vfs: Fix deadlock in zfs_write()
+
+Deadlock came into existence after b5eadc3, where zfs_write() was changed to
+take vnode lock when updating the vnode's size.
+
+The problem is the locking order where thread A could take ZFS range lock and
+eventually vnode lock when updating the vnode size, and thread B could take
+the same vnode lock then ZFS range lock.
+
+How to fix it? I'm introducing here a vnode operation called get_size that
+returns the node size without necessarily relying on the one provided by the
+vnode structure. With that change, ZFS no longer needs to take the vnode lock
+neither update vnode size when the write goes beyond the file size, and thus
+the deadlock disappears.
+
+Kudos to Vlad and Tomek.
+
+Fixes #504.
+
+Reported-by: Vlad Zolotarov <vladz@cloudius-systems.com>
+Signed-off-by: Raphael S. Carvalho <raphaelsc@cloudius-systems.com>
+---
+ .../opensolaris/uts/common/fs/zfs/zfs_vnops.c      | 22 ++++++++++++++++------
+ fs/devfs/devfs_vnops.cc                            |  9 +++++++++
+ fs/procfs/procfs_vnops.cc                          |  9 +++++++++
+ fs/ramfs/ramfs_vnops.cc                            |  9 +++++++++
+ fs/vfs/vfs_fops.cc                                 |  9 ++++++++-
+ fs/vfs/vfs_syscalls.cc                             |  4 +++-
+ include/osv/vnode.h                                |  3 +++
+ 7 files changed, 57 insertions(+), 8 deletions(-)
+
+diff --git a/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_vnops.c b/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_vnops.c
+index 9c7a5d2..1a5d3dd 100644
+--- a/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_vnops.c
++++ b/bsd/sys/cddl/contrib/opensolaris/uts/common/fs/zfs/zfs_vnops.c
+@@ -974,12 +974,6 @@ again:
+ 		 */
+ 		nbytes = MIN(n, max_blksz - P2PHASE(woff, max_blksz));
+ 
+-		if (woff + nbytes > zp->z_size) {
+-			vn_lock(vp);
+-			vnode_pager_setsize(vp, woff + nbytes);
+-			vn_unlock(vp);
+-		}
+-
+ 		if (abuf == NULL) {
+ 			tx_bytes = uio->uio_resid;
+ 			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
+@@ -1056,6 +1050,21 @@ again:
+ 	return (0);
+ }
+ 
++static int
++zfs_getsize(vnode_t *vp, off_t *node_size)
++{
++	znode_t         *zp = VTOZ(vp);
++	zfsvfs_t        *zfsvfs = zp->z_zfsvfs;
++
++	ZFS_ENTER(zfsvfs);
++	ZFS_VERIFY_ZP(zp);
++
++	*node_size = zp->z_size;
++
++	ZFS_EXIT(zfsvfs);
++	return (0);
++}
++
+ void
+ zfs_get_done(zgd_t *zgd, int error)
+ {
+@@ -5116,4 +5125,5 @@ struct vnops zfs_vnops = {
+ 	zfs_fallocate,			/* fallocate */
+ 	zfs_readlink,			/* read link */
+ 	zfs_symlink,			/* symbolic link */
++	zfs_getsize,			/* get size */
+ };
+diff --git a/fs/devfs/devfs_vnops.cc b/fs/devfs/devfs_vnops.cc
+index e6c4c37..ef3d77e 100644
+--- a/fs/devfs/devfs_vnops.cc
++++ b/fs/devfs/devfs_vnops.cc
+@@ -116,6 +116,14 @@ devfs_write(struct vnode *vp, struct uio *uio, int ioflags)
+ }
+ 
+ static int
++devfs_getsize(struct vnode *vp, off_t *node_size)
++{
++	assert(mutex_owned(&vp->v_lock));
++	*node_size = vp->v_size;
++	return 0;
++}
++
++static int
+ devfs_ioctl(struct vnode *vp, struct file *fp, u_long cmd, void *arg)
+ {
+ 	int error;
+@@ -271,6 +279,7 @@ struct vnops devfs_vnops = {
+ 	devfs_fallocate,	/* fallocate */
+ 	devfs_readlink,		/* read link */
+ 	devfs_symlink,		/* symbolic link */
++	devfs_getsize,		/* get size */
+ };
+ 
+ /*
+diff --git a/fs/procfs/procfs_vnops.cc b/fs/procfs/procfs_vnops.cc
+index bfa8bec..138ae57 100644
+--- a/fs/procfs/procfs_vnops.cc
++++ b/fs/procfs/procfs_vnops.cc
+@@ -175,6 +175,14 @@ procfs_write(vnode* vp, uio* uio, int ioflags)
+ }
+ 
+ static int
++procfs_getsize(vnode *vp, off_t *node_size)
++{
++    assert(mutex_owned(&vp->v_lock));
++    *node_size = vp->v_size;
++    return 0;
++}
++
++static int
+ procfs_ioctl(vnode* vp, file* fp, u_long cmd, void *arg)
+ {
+     return EINVAL;
+@@ -415,6 +423,7 @@ vnops procfs_vnops = {
+     (vnop_fallocate_t) vop_nullop, // vop_fallocate
+     (vnop_readlink_t)  vop_nullop, // vop_readlink
+     (vnop_symlink_t)   vop_nullop, // vop_symlink
++    procfs::procfs_getsize,        // vop_getsize
+ };
+ 
+ vfsops procfs_vfsops = {
+diff --git a/fs/ramfs/ramfs_vnops.cc b/fs/ramfs/ramfs_vnops.cc
+index 9500463..c85a8dd 100644
+--- a/fs/ramfs/ramfs_vnops.cc
++++ b/fs/ramfs/ramfs_vnops.cc
+@@ -364,6 +364,14 @@ ramfs_write(struct vnode *vp, struct uio *uio, int ioflag)
+ }
+ 
+ static int
++ramfs_getsize(struct vnode *vp, off_t *node_size)
++{
++	assert(mutex_owned(&vp->v_lock));
++	*node_size = vp->v_size;
++	return 0;
++}
++
++static int
+ ramfs_rename(struct vnode *dvp1, struct vnode *vp1, char *name1,
+ 	     struct vnode *dvp2, struct vnode *vp2, char *name2)
+ {
+@@ -503,5 +511,6 @@ struct vnops ramfs_vnops = {
+ 	ramfs_fallocate,	/* fallocate */
+ 	ramfs_readlink,		/* read link */
+ 	ramfs_symlink,		/* symbolic link */
++	ramfs_getsize,		/* get size */
+ };
+ 
+diff --git a/fs/vfs/vfs_fops.cc b/fs/vfs/vfs_fops.cc
+index d335051..ac40355 100644
+--- a/fs/vfs/vfs_fops.cc
++++ b/fs/vfs/vfs_fops.cc
+@@ -175,7 +175,14 @@ std::unique_ptr<mmu::file_vma> vfs_file::mmap(addr_range range, unsigned flags,
+ {
+ 	auto fp = this;
+ 	struct vnode *vp = fp->f_dentry->d_vnode;
+-	if (!vp->v_op->vop_cache || (vp->v_size < (off_t)mmu::page_size)) {
++	bool is_default_file_mmap;
++
++	WITH_LOCK(vp->v_lock) {
++		off_t v_size;
++		assert(VOP_GETSIZE(vp, &v_size) == 0);
++		is_default_file_mmap = !vp->v_op->vop_cache || (v_size < (off_t)mmu::page_size);
++	}
++	if (is_default_file_mmap) {
+ 		return mmu::default_file_mmap(this, range, flags, perm, offset);
+ 	}
+ 	return mmu::map_file_mmap(this, range, flags, perm, offset);
+diff --git a/fs/vfs/vfs_syscalls.cc b/fs/vfs/vfs_syscalls.cc
+index 904ae1c..3c2d37c 100644
+--- a/fs/vfs/vfs_syscalls.cc
++++ b/fs/vfs/vfs_syscalls.cc
+@@ -332,7 +332,9 @@ sys_lseek(struct file *fp, off_t off, int type, off_t *origin)
+ 		off = fp->f_offset + off;
+ 		break;
+ 	case SEEK_END:
+-		off = vp->v_size + off;
++		off_t v_size;
++		assert(VOP_GETSIZE(vp, &v_size) == 0);
++		off = v_size + off;
+ 		break;
+ 	}
+ 	if (off >= 0) {
+diff --git a/include/osv/vnode.h b/include/osv/vnode.h
+index f2fb0c4..5c34c3c 100755
+--- a/include/osv/vnode.h
++++ b/include/osv/vnode.h
+@@ -149,6 +149,7 @@ typedef int (*vnop_cache_t) (struct vnode *, struct file *, struct uio *);
+ typedef int (*vnop_fallocate_t) (struct vnode *, int, loff_t, loff_t);
+ typedef int (*vnop_readlink_t)  (struct vnode *, struct uio *);
+ typedef int (*vnop_symlink_t)   (struct vnode *, char *, char *);
++typedef int (*vnop_getsize_t) (struct vnode *, off_t *);
+ 
+ /*
+  * vnode operations
+@@ -177,6 +178,7 @@ struct vnops {
+ 	vnop_fallocate_t	vop_fallocate;
+ 	vnop_readlink_t		vop_readlink;
+ 	vnop_symlink_t		vop_symlink;
++	vnop_getsize_t		vop_getsize;
+ };
+ 
+ /*
+@@ -206,6 +208,7 @@ struct vnops {
+ #define VOP_FALLOCATE(VP, M, OFF, LEN) ((VP)->v_op->vop_fallocate)(VP, M, OFF, LEN)
+ #define VOP_READLINK(VP, U)        ((VP)->v_op->vop_readlink)(VP, U)
+ #define VOP_SYMLINK(DVP, OP, NP)   ((DVP)->v_op->vop_symlink)(DVP, OP, NP)
++#define VOP_GETSIZE(VP, OFFP)      ((VP)->v_op->vop_getsize)(VP, OFFP)
+ 
+ int	 vop_nullop(void);
+ int	 vop_einval(void);
+-- 
+1.9.3
+

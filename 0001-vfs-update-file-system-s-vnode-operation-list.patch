@@ -1,0 +1,81 @@
+From 114255b7cff0b6d7a6bc6b63c6577c3117aa25b3 Mon Sep 17 00:00:00 2001
+From: "Raphael S. Carvalho" <raphaelsc@cloudius-systems.com>
+Date: Mon, 29 Sep 2014 11:03:21 -0300
+Subject: [PATCH 1/3] vfs: update file system's vnode operation list
+
+update the vnode operation list of ramfs, devfs and procfs.
+
+Signed-off-by: Raphael S. Carvalho <raphaelsc@cloudius-systems.com>
+---
+ fs/devfs/devfs_vnops.cc   | 7 +++++++
+ fs/procfs/procfs_vnops.cc | 4 ++++
+ fs/ramfs/ramfs_vnops.cc   | 7 +++++++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/fs/devfs/devfs_vnops.cc b/fs/devfs/devfs_vnops.cc
+index 0a88c65..e6c4c37 100644
+--- a/fs/devfs/devfs_vnops.cc
++++ b/fs/devfs/devfs_vnops.cc
+@@ -240,6 +240,9 @@ devfs_getattr(struct vnode *vnode, struct vattr *attr)
+ #define devfs_inactive	((vnop_inactive_t)vop_nullop)
+ #define devfs_truncate	((vnop_truncate_t)vop_nullop)
+ #define devfs_link	((vnop_link_t)vop_eperm)
++#define devfs_fallocate ((vnop_fallocate_t)vop_nullop)
++#define devfs_readlink	((vnop_readlink_t)vop_nullop)
++#define devfs_symlink	((vnop_symlink_t)vop_nullop)
+ 
+ /*
+  * vnode operations
+@@ -264,6 +267,10 @@ struct vnops devfs_vnops = {
+ 	devfs_inactive,		/* inactive */
+ 	devfs_truncate,		/* truncate */
+ 	devfs_link,		/* link */
++	(vnop_cache_t) nullptr, /* arc */
++	devfs_fallocate,	/* fallocate */
++	devfs_readlink,		/* read link */
++	devfs_symlink,		/* symbolic link */
+ };
+ 
+ /*
+diff --git a/fs/procfs/procfs_vnops.cc b/fs/procfs/procfs_vnops.cc
+index 8fb39aa..bfa8bec 100644
+--- a/fs/procfs/procfs_vnops.cc
++++ b/fs/procfs/procfs_vnops.cc
+@@ -411,6 +411,10 @@ vnops procfs_vnops = {
+     (vnop_inactive_t) vop_nullop, // vop_inactive
+     (vnop_truncate_t) vop_nullop, // vop_truncate
+     (vnop_link_t)     vop_eperm,  // vop_link
++    (vnop_cache_t)     nullptr,   // vop_arc
++    (vnop_fallocate_t) vop_nullop, // vop_fallocate
++    (vnop_readlink_t)  vop_nullop, // vop_readlink
++    (vnop_symlink_t)   vop_nullop, // vop_symlink
+ };
+ 
+ vfsops procfs_vfsops = {
+diff --git a/fs/ramfs/ramfs_vnops.cc b/fs/ramfs/ramfs_vnops.cc
+index 4c51e56..9500463 100644
+--- a/fs/ramfs/ramfs_vnops.cc
++++ b/fs/ramfs/ramfs_vnops.cc
+@@ -472,6 +472,9 @@ ramfs_getattr(struct vnode *vnode, struct vattr *attr)
+ #define ramfs_setattr	((vnop_setattr_t)vop_eperm)
+ #define ramfs_inactive	((vnop_inactive_t)vop_nullop)
+ #define ramfs_link	((vnop_link_t)vop_eperm)
++#define ramfs_fallocate ((vnop_fallocate_t)vop_nullop)
++#define ramfs_readlink	((vnop_readlink_t)vop_nullop)
++#define ramfs_symlink	((vnop_symlink_t)vop_nullop)
+ 
+ /*
+  * vnode operations
+@@ -496,5 +499,9 @@ struct vnops ramfs_vnops = {
+ 	ramfs_inactive,		/* inactive */
+ 	ramfs_truncate,		/* truncate */
+ 	ramfs_link,		/* link */
++	(vnop_cache_t) nullptr, /* arc */
++	ramfs_fallocate,	/* fallocate */
++	ramfs_readlink,		/* read link */
++	ramfs_symlink,		/* symbolic link */
+ };
+ 
+-- 
+1.9.3
+
