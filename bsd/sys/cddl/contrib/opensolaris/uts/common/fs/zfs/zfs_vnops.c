@@ -975,9 +975,9 @@ again:
 		nbytes = MIN(n, max_blksz - P2PHASE(woff, max_blksz));
 
 		if (woff + nbytes > zp->z_size) {
-			vn_lock(vp);
+			//vn_lock(vp);
 			vnode_pager_setsize(vp, woff + nbytes);
-			vn_unlock(vp);
+			//vn_unlock(vp);
 		}
 
 		if (abuf == NULL) {
